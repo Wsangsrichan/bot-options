@@ -1,4 +1,5 @@
 """Simple web dashboard for bot-options — top opportunities ranking + paper portfolio."""
+import asyncio
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -6,6 +7,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask import Flask, render_template_string, jsonify
 from src.storage import OptionsStore
 from src.config import Config
+from src.yfinance_client import YFinanceClient
+
+yf_client = YFinanceClient()
 
 app = Flask(__name__)
 config = Config()
@@ -109,17 +113,23 @@ PAPER_HTML = """<!DOCTYPE html>
     """ + NAV + """
     <div class="cards">
         <div class="card">
-            <div class="card-label">Initial Balance</div>
-            <div class="card-value">${{ "{:,.0f}".format(summary.initial_balance) }}</div>
+            <div class="card-label">Portfolio Value</div>
+            <div class="card-value">${{ "{:,.0f}".format(summary.portfolio_value) }}</div>
         </div>
         <div class="card">
             <div class="card-label">Current Cash</div>
             <div class="card-value">${{ "{:,.0f}".format(summary.cash) }}</div>
         </div>
         <div class="card">
-            <div class="card-label">Total PnL</div>
+            <div class="card-label">Realized PnL</div>
             <div class="card-value {{ 'pnl-pos' if summary.total_pnl >= 0 else 'pnl-neg' }}">
                 ${{ "{:+,.0f}".format(summary.total_pnl) }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-label">Unrealized PnL</div>
+            <div class="card-value {{ 'pnl-pos' if (summary.unrealized_pnl or 0) >= 0 else 'pnl-neg' }}">
+                ${{ "{:+,.0f}".format(summary.unrealized_pnl or 0) }}
             </div>
         </div>
         <div class="card">
@@ -137,6 +147,8 @@ PAPER_HTML = """<!DOCTYPE html>
             <th>Strike</th>
             <th>Exp</th>
             <th>Entry</th>
+            <th>Current</th>
+            <th>Unrealized PnL</th>
             <th>Entry Spot</th>
             <th>Delta</th>
             <th>IV</th>
@@ -150,6 +162,10 @@ PAPER_HTML = """<!DOCTYPE html>
             <td>${{ "%.1f"|format(pos.strike) }}</td>
             <td>{{ pos.expiration }}</td>
             <td>${{ "%.2f"|format(pos.entry_price) }}</td>
+            <td>{{ "$%.2f"|format(pos.current_price) if pos.current_price else "N/A" }}</td>
+            <td class="{{ 'pnl-pos' if (pos.unrealized_pnl or 0) >= 0 else 'pnl-neg' }}">
+                {% if pos.unrealized_pnl is not none %}${{ "{:+,.0f}".format(pos.unrealized_pnl) }} ({{ "{:+.1f}%".format(pos.unrealized_pnl_pct) }}){% else %}N/A{% endif %}
+            </td>
             <td>${{ "%.2f"|format(pos.entry_spot) }}</td>
             <td>{{ "%.2f"|format(pos.entry_delta or 0) }}</td>
             <td>{{ "%.1f%%"|format((pos.entry_iv or 0) * 100) }}</td>
@@ -193,6 +209,18 @@ PAPER_HTML = """<!DOCTYPE html>
 </html>"""
 
 
+def _find_option_price(position, chain):
+    for opt in chain.options:
+        if (opt.strike == position["strike"]
+                and opt.expiration == position["expiration"]
+                and opt.option_type == position["option_type"]):
+            mid = (opt.bid + opt.ask) / 2
+            if mid > 0:
+                return round(mid, 2)
+            return round(opt.last, 2) if opt.last > 0 else None
+    return None
+
+
 @app.route("/")
 def index():
     rows = []
@@ -226,6 +254,44 @@ def paper():
     summary["initial_balance"] = initial
     summary["cash"] = initial + summary["total_pnl"] - summary["total_invested"]
     open_positions = store.get_open_positions()
+
+    # Mark-to-market for HTML view
+    unrealized_total = 0.0
+    if open_positions:
+        tickers = list({p["ticker"] for p in open_positions})
+        try:
+            chains = asyncio.get_event_loop().run_until_complete(
+                yf_client.fetch_multiple(tickers, max_concurrent=len(tickers))
+            )
+            chain_map = {c.ticker: c for c in chains}
+            for pos in open_positions:
+                chain = chain_map.get(pos["ticker"])
+                if chain:
+                    current = _find_option_price(pos, chain)
+                    pos["current_price"] = current
+                    if current is not None and current > 0:
+                        pnl = (current - pos["entry_price"]) * pos["contracts"] * 100
+                        pnl_pct = (current - pos["entry_price"]) / pos["entry_price"] * 100
+                        pos["unrealized_pnl"] = round(pnl, 2)
+                        pos["unrealized_pnl_pct"] = round(pnl_pct, 1)
+                        unrealized_total += pnl
+                    else:
+                        pos["current_price"] = None
+                        pos["unrealized_pnl"] = None
+                        pos["unrealized_pnl_pct"] = None
+                else:
+                    pos["current_price"] = None
+                    pos["unrealized_pnl"] = None
+                    pos["unrealized_pnl_pct"] = None
+        except Exception:
+            for pos in open_positions:
+                pos["current_price"] = None
+                pos["unrealized_pnl"] = None
+                pos["unrealized_pnl_pct"] = None
+
+    summary["unrealized_pnl"] = round(unrealized_total, 2)
+    summary["portfolio_value"] = round(summary["cash"] + summary["total_invested"] + unrealized_total, 2)
+    summary["open_positions"] = summary.get("open_count", len(open_positions))
     history = store.get_position_history(limit=50)
     return render_template_string(PAPER_HTML, summary=summary,
                                  open_positions=open_positions, history=history)
@@ -247,7 +313,52 @@ def api_paper_portfolio():
     initial = config.paper_initial_balance
     summary["initial_balance"] = initial
     summary["cash"] = initial + summary["total_pnl"] - summary["total_invested"]
-    summary["open_positions"] = store.get_open_positions()
+    open_positions = store.get_open_positions()
+
+    # Mark-to-market pricing
+    unrealized_total = 0.0
+    if open_positions:
+        tickers = list({p["ticker"] for p in open_positions})
+        try:
+            chains = asyncio.get_event_loop().run_until_complete(
+                yf_client.fetch_multiple(tickers, max_concurrent=len(tickers))
+            )
+            chain_map = {c.ticker: c for c in chains}
+
+            for pos in open_positions:
+                chain = chain_map.get(pos["ticker"])
+                if not chain:
+                    pos["current_price"] = None
+                    pos["unrealized_pnl"] = None
+                    pos["unrealized_pnl_pct"] = None
+                    continue
+
+                current = _find_option_price(pos, chain)
+                pos["current_price"] = current
+                if current is not None and current > 0:
+                    pnl = (current - pos["entry_price"]) * pos["contracts"] * 100
+                    pnl_pct = (current - pos["entry_price"]) / pos["entry_price"] * 100
+                    pos["unrealized_pnl"] = round(pnl, 2)
+                    pos["unrealized_pnl_pct"] = round(pnl_pct, 1)
+                    unrealized_total += pnl
+                else:
+                    pos["unrealized_pnl"] = None
+                    pos["unrealized_pnl_pct"] = None
+        except Exception:
+            for pos in open_positions:
+                pos["current_price"] = None
+                pos["unrealized_pnl"] = None
+                pos["unrealized_pnl_pct"] = None
+    else:
+        for pos in open_positions:
+            pos["current_price"] = None
+            pos["unrealized_pnl"] = None
+            pos["unrealized_pnl_pct"] = None
+
+    summary["unrealized_pnl"] = round(unrealized_total, 2)
+    summary["portfolio_value"] = round(summary["cash"] + summary["total_invested"] + unrealized_total, 2)
+    summary["open_positions"] = summary.get("open_count", len(open_positions))
+    summary["open_positions_data"] = open_positions
     summary["history"] = store.get_position_history(limit=50)
     return jsonify(summary)
 

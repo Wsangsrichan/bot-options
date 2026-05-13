@@ -11,43 +11,58 @@ class PaperTrader:
         self.rules = exit_rules
         self.confidence_threshold = ai_confidence_threshold
 
-    async def evaluate_alert(self, alert, chain) -> bool:
+    async def evaluate_alert(self, alert, chain) -> dict | None:
         ai_conf = alert.get("ai_confidence", 0)
         if ai_conf < self.confidence_threshold:
-            return False
+            return None
         if alert.get("ai_direction") == "neutral":
-            return False
+            return None
 
         try:
             exp_date = datetime.strptime(alert["expiration"], "%Y-%m-%d").date()
             days_left = (exp_date - datetime.now().date()).days
             if days_left < self.rules.min_dte_days:
-                return False
+                return None
         except (ValueError, KeyError):
             pass
 
         pos_id = self.pm.open_position(alert, chain.underlying_price)
         if pos_id:
+            direction = "CALL" if alert["option_type"] == "C" else "PUT"
+            entry = alert.get("bid", 0) and alert.get("ask", 0)
+            entry_price = (alert["bid"] + alert["ask"]) / 2 if entry else alert.get("price", 0)
+            contracts = self.pm.store.get_open_positions()
+            contracts = next((p["contracts"] for p in contracts if p["id"] == pos_id), 1)
             print(f"  [PAPER] Opened {alert['option_type']} K={alert['strike']} "
                   f"conf={ai_conf}% — ID={pos_id}")
-            return True
-        return False
+            return {
+                "action": "open",
+                "ticker": alert["ticker"],
+                "option_type": direction,
+                "strike": alert["strike"],
+                "expiration": alert["expiration"],
+                "entry_price": round(entry_price, 2),
+                "contracts": contracts,
+                "ai_confidence": ai_conf,
+                "position_id": pos_id,
+            }
+        return None
 
-    async def check_exits(self, client) -> int:
+    async def check_exits(self, client) -> list[dict]:
         from datetime import datetime
         from src.exit_rules import ExitRules
 
-        closed = 0
+        closed_list = []
         positions = self.pm.store.get_open_positions()
         if not positions:
-            return 0
+            return []
 
         tickers = list({p["ticker"] for p in positions})
         try:
             chains = await client.fetch_multiple(tickers, max_concurrent=len(tickers))
         except Exception as e:
             print(f"  [PAPER] Exit check error: {e}")
-            return 0
+            return []
 
         chain_map = {c.ticker: c for c in chains}
         current_date = datetime.now().date()
@@ -64,11 +79,20 @@ class PaperTrader:
             reason = self.rules.check_position(pos, current_price, current_date)
             if reason:
                 pnl = self.pm.close_position(pos["id"], current_price, reason)
+                direction = "CALL" if pos["option_type"] == "C" else "PUT"
                 print(f"  [PAPER] Closed {pos['ticker']} {pos['option_type']} "
                       f"K={pos['strike']} — {reason}, PnL=${pnl:+.0f}")
-                closed += 1
+                closed_list.append({
+                    "action": "close",
+                    "ticker": pos["ticker"],
+                    "option_type": direction,
+                    "strike": pos["strike"],
+                    "pnl": round(pnl),
+                    "reason": reason,
+                    "position_id": pos["id"],
+                })
 
-        return closed
+        return closed_list
 
     def _estimate_price(self, position, chain):
         for opt in chain.options:

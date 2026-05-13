@@ -40,6 +40,9 @@ class Config:
         self.stop_loss_pct = float(os.getenv("STOP_LOSS_PCT", "-0.50"))
         self.take_profit_pct = float(os.getenv("TAKE_PROFIT_PCT", "1.00"))
         self.min_dte_days = int(os.getenv("MIN_DTE_DAYS", "5"))
+        self.paper_position_strategy = os.getenv("PAPER_POSITION_STRATEGY", "fixed_fractional")
+        self.paper_risk_per_trade = float(os.getenv("PAPER_RISK_PER_TRADE", "0.05"))
+        self.paper_kelly_fraction = float(os.getenv("PAPER_KELLY_FRACTION", "0.5"))
 
         # Opportunity scoring weights: vol_oi, premium_zscore, iv_rank, gex
         self.opportunity_score_weights = [

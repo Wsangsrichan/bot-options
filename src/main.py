@@ -17,6 +17,7 @@ from src.ai_analyzer import AIAnalyzer
 from src.position_manager import PositionManager
 from src.exit_rules import ExitRules
 from src.paper_trader import PaperTrader
+from src.position_sizer import PositionSizer
 
 
 class OptionsBot:
@@ -45,7 +46,12 @@ class OptionsBot:
 
         # Paper trading
         if self.config.enable_paper_trading:
-            self.pm = PositionManager(self.store, self.config.paper_initial_balance)
+            sizer = PositionSizer(
+                strategy=self.config.paper_position_strategy,
+                risk_per_trade=self.config.paper_risk_per_trade,
+                kelly_fraction=self.config.paper_kelly_fraction,
+            )
+            self.pm = PositionManager(self.store, self.config.paper_initial_balance, position_sizer=sizer)
             self.exit_rules = ExitRules(
                 self.config.stop_loss_pct, self.config.take_profit_pct, self.config.min_dte_days
             )
@@ -113,10 +119,32 @@ class OptionsBot:
         if self.paper_trader:
             for alert in all_alerts:
                 if alert.get("ai_interpretation"):
-                    await self.paper_trader.evaluate_alert(alert, chain)
+                    result = await self.paper_trader.evaluate_alert(alert, chain)
+                    if result:
+                        s = self.alerter.escape_md
+                        msg = (
+                            f"📊 *Paper Trade Opened*\n"
+                            f"{s(result['option_type'])} · {s(result['ticker'])} \\${s(result['strike'])} · {s(result['expiration'])}\n"
+                            f"Entry: \\${s(result['entry_price'])} × {s(result['contracts'])}\n"
+                            f"AI Confidence: {s(result['ai_confidence'])}%\n"
+                            f"ID: #{s(result['position_id'])}"
+                        )
+                        try:
+                            await self.alerter.send_message(msg)
+                        except Exception as e:
+                            print(f"  [PAPER] Telegram error: {e}")
             closed = await self.paper_trader.check_exits(self.client)
-            if closed:
-                print(f"  [PAPER] Closed {closed} position(s)")
+            for c in closed:
+                s = self.alerter.escape_md
+                msg = (
+                    f"💰 *Paper Trade Closed*\n"
+                    f"{s(c['ticker'])} {s(c['option_type'])} \\$K\\={s(c['strike'])}\n"
+                    f"PnL: \\${s(c['pnl'])} \\| Reason: {s(c['reason'])}"
+                )
+                try:
+                    await self.alerter.send_message(msg)
+                except Exception as e:
+                    print(f"  [PAPER] Telegram error: {e}")
 
         sent = 0
         for alert in all_alerts[:5]:
