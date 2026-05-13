@@ -16,8 +16,8 @@ class Config:
         self.database_url = os.getenv("DATABASE_URL", "postgresql://bot:pass@localhost:5432/options")
 
         # Detection thresholds
-        self.vol_oi_ratio_threshold = float(os.getenv("VOL_OI_RATIO_THRESHOLD", "0.5"))
-        self.premium_zscore_threshold = float(os.getenv("PREMIUM_ZSCORE_THRESHOLD", "2.0"))
+        self.vol_oi_ratio_threshold = float(os.getenv("VOL_OI_RATIO_THRESHOLD", "0.8"))
+        self.premium_zscore_threshold = float(os.getenv("PREMIUM_ZSCORE_THRESHOLD", "3.0"))
         self.min_contracts = int(os.getenv("MIN_CONTRACTS", "50"))
 
         # yfinance Greeks computation

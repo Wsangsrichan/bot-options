@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from src.position_manager import PositionManager
 from src.exit_rules import ExitRules
 
@@ -15,6 +17,14 @@ class PaperTrader:
             return False
         if alert.get("ai_direction") == "neutral":
             return False
+
+        try:
+            exp_date = datetime.strptime(alert["expiration"], "%Y-%m-%d").date()
+            days_left = (exp_date - datetime.now().date()).days
+            if days_left < self.rules.min_dte_days:
+                return False
+        except (ValueError, KeyError):
+            pass
 
         pos_id = self.pm.open_position(alert, chain.underlying_price)
         if pos_id:

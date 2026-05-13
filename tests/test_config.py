@@ -23,8 +23,8 @@ def test_config_defaults(monkeypatch):
     config = Config()
     assert config.scan_tickers == ["SPY"]
     assert config.scan_interval_minutes == 5
-    assert config.vol_oi_ratio_threshold == 0.5
-    assert config.premium_zscore_threshold == 2.0
+    assert config.vol_oi_ratio_threshold == 0.8
+    assert config.premium_zscore_threshold == 3.0
     assert config.min_contracts == 50
     assert config.greeks_max_strikes_per_side == 10
 
