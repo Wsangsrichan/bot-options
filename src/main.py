@@ -138,7 +138,7 @@ class OptionsBot:
                 if alert.get("ai_interpretation"):
                     result = await self.paper_trader.evaluate_alert(alert, chain)
                     if result:
-                        s = escape_md
+                        s = lambda x: escape_md(str(x))
                         msg = (
                             f"📊 *Paper Trade Opened*\n"
                             f"{s(result['option_type'])} · {s(result['ticker'])} \\${s(result['strike'])} · {s(result['expiration'])}\n"
@@ -152,7 +152,7 @@ class OptionsBot:
                             print(f"  [PAPER] Telegram error: {e}")
             closed = await self.paper_trader.check_exits(self.client)
             for c in closed:
-                s = escape_md
+                s = lambda x: escape_md(str(x))
                 msg = (
                     f"💰 *Paper Trade Closed*\n"
                     f"{s(c['ticker'])} {s(c['option_type'])} \\$K\\={s(c['strike'])}\n"
