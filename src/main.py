@@ -13,6 +13,7 @@ from src.detector import UnusualDetector
 from src.alerter import TelegramAlerter
 from src.storage import OptionsStore
 from src.calculator import OptionsCalculator
+from src.ai_analyzer import AIAnalyzer
 
 
 class OptionsBot:
@@ -33,6 +34,7 @@ class OptionsBot:
             chat_id=self.config.telegram_chat_id
         )
         self.store = OptionsStore(db_path=self.config.database_path)
+        self.ai_analyzer = AIAnalyzer(api_key=self.config.gemini_api_key) if self.config.enable_ai_analysis else None
         self.running = True
         self.cycle_count = 0
 
@@ -74,6 +76,19 @@ class OptionsBot:
             all_alerts.extend(alerts)
 
         all_alerts.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        # AI analysis for top scored alerts
+        if self.ai_analyzer:
+            for alert in all_alerts[:3]:
+                ai_result = await self.ai_analyzer.analyze_alert(alert)
+                if ai_result:
+                    alert["ai_interpretation"] = ai_result["interpretation"]
+                    alert["ai_confidence"] = ai_result["confidence"]
+                    alert["ai_direction"] = ai_result["direction"]
+                    alert["ai_factors"] = ai_result.get("key_factors", [])
+                    alert["ai_risks"] = ai_result.get("risk_flags", [])
+                    print(f"  [AI] {alert['ticker']} — conf={ai_result['confidence']}% dir={ai_result['direction']}")
+
         sent = 0
         for alert in all_alerts[:5]:
             try:

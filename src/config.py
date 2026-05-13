@@ -23,6 +23,11 @@ class Config:
         # yfinance Greeks computation
         self.greeks_max_strikes_per_side = int(os.getenv("GREEKS_MAX_STRIKES_PER_SIDE", "10"))
 
+        # AI Analysis
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        self.enable_ai_analysis = os.getenv("ENABLE_AI_ANALYSIS", "true").lower() == "true"
+        self.ai_min_confidence = int(os.getenv("AI_MIN_CONFIDENCE", "30"))
+
         # Storage
         self.database_path = os.getenv("DATABASE_PATH", "./data/options.db")
 

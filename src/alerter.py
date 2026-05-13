@@ -28,6 +28,22 @@ class TelegramAlerter:
             f"• Premium: \\${signal['premium_usd']:,.0f}\n"
             f"• Delta: {s(signal.get('delta', 'N/A'))}  ·  IV: {s(signal.get('iv', 0) * 100)}%\n"
             f"• Score: {signal.get('score', 0):.0f}/100\n"
+        )
+
+        # AI interpretation
+        ai_interpretation = signal.get("ai_interpretation")
+        if ai_interpretation:
+            ai_direction = signal.get("ai_direction", "neutral")
+            dir_emoji = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}.get(ai_direction, "⚪")
+            msg += (
+                f"\n🤖 *AI Analysis* {dir_emoji} \\(conf: {signal.get('ai_confidence', 0)}%\\)\n"
+                f"{escape_md(ai_interpretation)}\n"
+            )
+            risks = signal.get("ai_risks", [])
+            if risks:
+                msg += f"⚠️ Risks: {escape_md(', '.join(risks))}\n"
+
+        msg += (
             f"• Max Pain: \\${s(signal.get('max_pain', 'N/A'))}  ·  GEX: \\${signal.get('gex_total', 0):,.0f}\n"
             f"• Reason: {s(signal.get('reason', 'unknown'))}"
         )
