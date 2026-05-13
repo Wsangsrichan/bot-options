@@ -104,9 +104,25 @@ class OptionsBot:
 
         all_alerts.sort(key=lambda x: x.get("score", 0), reverse=True)
 
+        # Prioritize tradeable alerts (DTE >= 5) for AI analysis
+        from datetime import datetime as dt
+        tradeable = []
+        others = []
+        for a in all_alerts:
+            try:
+                exp = dt.strptime(a["expiration"], "%Y-%m-%d").date()
+                if (exp - dt.now().date()).days >= 5:
+                    tradeable.append(a)
+                else:
+                    others.append(a)
+            except (ValueError, KeyError):
+                others.append(a)
+        ai_candidates = tradeable + others
+
         # AI analysis for top scored alerts
         if self.ai_analyzer:
-            for alert in all_alerts[:3]:
+            limit = self.config.max_ai_analysis
+            for alert in ai_candidates[:limit]:
                 ai_result = await self.ai_analyzer.analyze_alert(alert)
                 if ai_result:
                     alert["ai_interpretation"] = ai_result["interpretation"]
