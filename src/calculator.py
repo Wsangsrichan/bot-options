@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 from vollib.black_scholes import black_scholes as bs_price
 from vollib.black_scholes.greeks.analytical import delta, gamma, theta, vega, rho
@@ -54,3 +56,40 @@ class OptionsCalculator:
 
     def compute_premium(self, price, contracts):
         return price * contracts * 100
+
+    def heuristic_greeks(self, option_type, S, K, T, r):
+        if option_type in ('C', 'c', 'call'):
+            if S > K * 1.3:
+                return {
+                    'delta': 1.0,
+                    'gamma': 0.0,
+                    'theta': -r * K * math.exp(-r * T),
+                    'vega': 0.0,
+                    'rho': K * T * math.exp(-r * T),
+                }
+            if S < K * 0.7:
+                return {
+                    'delta': 0.0,
+                    'gamma': 0.0,
+                    'theta': 0.0,
+                    'vega': 0.0,
+                    'rho': 0.0,
+                }
+        else:
+            if K > S * 1.3:
+                return {
+                    'delta': -1.0,
+                    'gamma': 0.0,
+                    'theta': -r * K * math.exp(-r * T),
+                    'vega': 0.0,
+                    'rho': -K * T * math.exp(-r * T),
+                }
+            if K < S * 0.7:
+                return {
+                    'delta': 0.0,
+                    'gamma': 0.0,
+                    'theta': 0.0,
+                    'vega': 0.0,
+                    'rho': 0.0,
+                }
+        return None

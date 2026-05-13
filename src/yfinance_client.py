@@ -71,16 +71,13 @@ class YFinanceClient:
                     all_calls = chain.calls.to_dict('records') if chain.calls is not None else []
                     all_puts = chain.puts.to_dict('records') if chain.puts is not None else []
 
-                    call_strikes = self._select_near_the_money(all_calls, spot, self.max_strikes)
-                    put_strikes = self._select_near_the_money(all_puts, spot, self.max_strikes)
-
                     for row in all_calls:
-                        opt = self._row_to_option(row, 'C', spot, T, exp_str, self._safe_float(row.get('strike', 0)) in call_strikes)
+                        opt = self._row_to_option(row, 'C', spot, T, exp_str, compute_greeks=True)
                         if opt:
                             options.append(opt)
 
                     for row in all_puts:
-                        opt = self._row_to_option(row, 'P', spot, T, exp_str, self._safe_float(row.get('strike', 0)) in put_strikes)
+                        opt = self._row_to_option(row, 'P', spot, T, exp_str, compute_greeks=True)
                         if opt:
                             options.append(opt)
 
@@ -154,6 +151,16 @@ class YFinanceClient:
                         rho = greeks['rho']
                 except Exception:
                     pass
+
+            # Fallback: heuristic Greeks for deep ITM/OTM where IV solver fails
+            if delta == 0 and gamma == 0:
+                h = self.calc.heuristic_greeks(option_type, spot, strike, T, self.risk_free_rate)
+                if h:
+                    delta = h['delta']
+                    gamma = h['gamma']
+                    theta = h['theta']
+                    vega = h['vega']
+                    rho = h['rho']
 
         if last <= 0 and (bid + ask) > 0:
             last = (bid + ask) / 2

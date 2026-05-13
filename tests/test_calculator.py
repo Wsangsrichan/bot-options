@@ -40,3 +40,47 @@ def test_compute_premium():
     calc = OptionsCalculator()
     premium = calc.compute_premium(price=5.25, contracts=100)
     assert premium == 52500.0
+
+
+def test_heuristic_greeks_deep_itm_call():
+    calc = OptionsCalculator()
+    g = calc.heuristic_greeks('C', S=500, K=300, T=0.1, r=0.05)
+    assert g is not None
+    assert g['delta'] == 1.0
+    assert g['gamma'] == 0.0
+    assert g['vega'] == 0.0
+    assert g['theta'] < 0  # negative theta
+    assert g['rho'] > 0     # positive rho for call
+
+
+def test_heuristic_greeks_deep_itm_put():
+    calc = OptionsCalculator()
+    g = calc.heuristic_greeks('P', S=300, K=500, T=0.1, r=0.05)
+    assert g is not None
+    assert g['delta'] == -1.0
+    assert g['gamma'] == 0.0
+    assert g['vega'] == 0.0
+    assert g['rho'] < 0  # negative rho for put
+
+
+def test_heuristic_greeks_deep_otm():
+    calc = OptionsCalculator()
+    # Deep OTM CALL
+    g = calc.heuristic_greeks('C', S=300, K=500, T=0.1, r=0.05)
+    assert g is not None
+    assert g['delta'] == 0.0
+    assert g['gamma'] == 0.0
+    assert g['vega'] == 0.0
+
+    # Deep OTM PUT
+    g = calc.heuristic_greeks('P', S=500, K=300, T=0.1, r=0.05)
+    assert g is not None
+    assert g['delta'] == 0.0
+    assert g['gamma'] == 0.0
+
+
+def test_heuristic_greeks_near_money_returns_none():
+    calc = OptionsCalculator()
+    # Not deep enough — should return None (use normal solver)
+    g = calc.heuristic_greeks('C', S=500, K=480, T=0.1, r=0.05)  # S/K = 1.04 < 1.3
+    assert g is None

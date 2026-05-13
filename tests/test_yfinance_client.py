@@ -71,22 +71,44 @@ async def test_fetch_options_chain_empty():
 
 
 @pytest.mark.asyncio
-async def test_greeks_computed_for_near_the_money(mock_yf_ticker):
+async def test_all_options_get_greeks(mock_yf_ticker):
+    """All options should get Greeks — IV solver for near-the-money, heuristic for deep."""
     with patch("src.yfinance_client.yf.Ticker", return_value=mock_yf_ticker):
-        client = YFinanceClient(greeks_max_strikes_per_side=1)  # Only 1 strike per side
+        client = YFinanceClient(greeks_max_strikes_per_side=5)
         chain = await client.fetch_options_chain("SPY")
 
-    # 525 is closer to 520.50 than 530 => 525 gets Greeks, 530 doesn't
+    # Both CALLs (525 and 530) should have Greeks since both are near spot (520.50)
     call_525 = [o for o in chain.options if o.strike == 525.0 and o.option_type == "C"][0]
     call_530 = [o for o in chain.options if o.strike == 530.0 and o.option_type == "C"][0]
 
-    # Near-the-money (525) should have IV > 0 computed
+    # Both should have IV > 0 from the solver (both near-the-money)
     assert call_525.iv > 0
     assert call_525.delta != 0
+    assert call_530.iv > 0
+    assert call_530.delta != 0
 
-    # Far from money (530) should have all zeros
-    assert call_530.iv == 0
-    assert call_530.delta == 0
+
+@pytest.mark.asyncio
+async def test_deep_itm_gets_heuristic_greeks(mock_yf_ticker):
+    """Deep ITM options should get heuristic Greeks (delta≈±1.0) even without IV."""
+    # Add a deep ITM CALL (strike 200 when spot=520.50, S/K = 2.6 > 1.3)
+    deep_itm = make_call_row(strike=200.0, bid=318.0, ask=322.0, last=320.0, volume=10, oi=50)
+    mock_yf_ticker.option_chain.return_value.calls = pd.DataFrame([
+        make_call_row(strike=200.0, bid=318.0, ask=322.0, last=320.0, volume=10, oi=50)
+    ])
+    mock_yf_ticker.option_chain.return_value.puts = pd.DataFrame()
+
+    with patch("src.yfinance_client.yf.Ticker", return_value=mock_yf_ticker):
+        client = YFinanceClient()
+        chain = await client.fetch_options_chain("SPY")
+
+    assert len(chain.options) == 1
+    opt = chain.options[0]
+    # Deep ITM CALL: heuristic should give delta=1.0
+    assert opt.delta == 1.0
+    assert opt.gamma == 0.0
+    assert opt.vega == 0.0
+    # IV might be 0 (solver failed on deep ITM) — that's OK, heuristic fills the Greeks
 
 
 @pytest.mark.asyncio
