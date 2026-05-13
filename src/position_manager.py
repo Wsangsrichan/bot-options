@@ -18,6 +18,15 @@ class PositionManager:
         else:
             entry = (bid + ask) / 2
 
+        # Skip duplicate: don't open if same option already held
+        existing = self.store.get_open_positions()
+        for pos in existing:
+            if (pos["ticker"] == alert.get("ticker")
+                    and pos["option_type"] == alert.get("option_type")
+                    and pos["strike"] == alert.get("strike")
+                    and pos["expiration"] == alert.get("expiration")):
+                return None  # already holding this option
+
         # Position sizing
         if self.position_sizer:
             summary = self.store.get_account_summary()
