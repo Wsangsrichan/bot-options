@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask import Flask, render_template_string, jsonify
 from src.storage import OptionsStore
 from src.config import Config
+from src.analytics import Analytics
 from src.yfinance_client import YFinanceClient
 
 yf_client = YFinanceClient()
@@ -14,6 +15,7 @@ yf_client = YFinanceClient()
 app = Flask(__name__)
 config = Config()
 store = OptionsStore(db_path=config.database_path)
+analytics = Analytics(store)
 
 NAV = """
 <div style="margin-bottom:20px;">
@@ -135,6 +137,30 @@ PAPER_HTML = """<!DOCTYPE html>
         <div class="card">
             <div class="card-label">Open Positions</div>
             <div class="card-value">{{ summary.open_positions }}</div>
+        </div>
+    </div>
+
+    <div class="cards">
+        <div class="card">
+            <div class="card-label">Win Rate</div>
+            <div class="card-value {{ 'pnl-pos' if metrics.win_rate >= 50 else 'pnl-neg' }}">{{ metrics.win_rate }}%</div>
+            <div style="color:#666;font-size:12px;margin-top:4px;">{{ metrics.winning_trades }}W / {{ metrics.losing_trades }}L</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Profit Factor</div>
+            <div class="card-value {{ 'pnl-pos' if metrics.profit_factor >= 1 else 'pnl-neg' }}">{{ metrics.profit_factor }}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Sharpe Ratio</div>
+            <div class="card-value">{{ metrics.sharpe_ratio }}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Max Drawdown</div>
+            <div class="card-value pnl-neg">{{ metrics.max_drawdown_pct }}%</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Total Trades</div>
+            <div class="card-value">{{ metrics.total_trades }}</div>
         </div>
     </div>
 
@@ -293,8 +319,10 @@ def paper():
     summary["portfolio_value"] = round(summary["cash"] + summary["total_invested"] + unrealized_total, 2)
     summary["open_positions"] = summary.get("open_count", len(open_positions))
     history = store.get_position_history(limit=50)
+    metrics = analytics.calculate()
     return render_template_string(PAPER_HTML, summary=summary,
-                                 open_positions=open_positions, history=history)
+                                 open_positions=open_positions, history=history,
+                                 metrics=metrics)
 
 
 @app.route("/api/opportunities")
@@ -361,6 +389,11 @@ def api_paper_portfolio():
     summary["open_positions_data"] = open_positions
     summary["history"] = store.get_position_history(limit=50)
     return jsonify(summary)
+
+
+@app.route("/api/paper/metrics")
+def api_paper_metrics():
+    return jsonify(analytics.calculate())
 
 
 def main():
