@@ -21,8 +21,13 @@ class UnusualDetector:
         std_premium = statistics.stdev(premiums) if len(premiums) > 1 else 1
 
         for opt in options:
+            # Skip options with no volume or missing data
             if opt.volume < self.min_contracts:
                 continue
+            if opt.open_interest <= 0:
+                continue  # Can't compute vol/OI ratio without OI
+            if opt.bid <= 0 or opt.ask <= 0:
+                continue  # No executable price
 
             signal = {}
 
