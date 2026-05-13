@@ -33,6 +33,14 @@ class Config:
         # Storage
         self.database_path = os.getenv("DATABASE_PATH", "./data/options.db")
 
+        # Paper Trading
+        self.enable_paper_trading = os.getenv("ENABLE_PAPER_TRADING", "false").lower() == "true"
+        self.paper_initial_balance = float(os.getenv("PAPER_INITIAL_BALANCE", "10000"))
+        self.paper_ai_confidence_threshold = int(os.getenv("PAPER_AI_CONFIDENCE_THRESHOLD", "60"))
+        self.stop_loss_pct = float(os.getenv("STOP_LOSS_PCT", "-0.50"))
+        self.take_profit_pct = float(os.getenv("TAKE_PROFIT_PCT", "1.00"))
+        self.min_dte_days = int(os.getenv("MIN_DTE_DAYS", "5"))
+
         # Opportunity scoring weights: vol_oi, premium_zscore, iv_rank, gex
         self.opportunity_score_weights = [
             float(w) / 100

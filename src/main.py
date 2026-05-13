@@ -14,6 +14,9 @@ from src.alerter import TelegramAlerter
 from src.storage import OptionsStore
 from src.calculator import OptionsCalculator
 from src.ai_analyzer import AIAnalyzer
+from src.position_manager import PositionManager
+from src.exit_rules import ExitRules
+from src.paper_trader import PaperTrader
 
 
 class OptionsBot:
@@ -39,6 +42,19 @@ class OptionsBot:
             provider=self.config.ai_provider,
             model=self.config.ai_model,
         ) if self.config.enable_ai_analysis else None
+
+        # Paper trading
+        if self.config.enable_paper_trading:
+            self.pm = PositionManager(self.store, self.config.paper_initial_balance)
+            self.exit_rules = ExitRules(
+                self.config.stop_loss_pct, self.config.take_profit_pct, self.config.min_dte_days
+            )
+            self.paper_trader = PaperTrader(
+                self.pm, self.exit_rules, self.config.paper_ai_confidence_threshold
+            )
+        else:
+            self.paper_trader = None
+
         self.running = True
         self.cycle_count = 0
 
@@ -92,6 +108,15 @@ class OptionsBot:
                     alert["ai_factors"] = ai_result.get("key_factors", [])
                     alert["ai_risks"] = ai_result.get("risk_flags", [])
                     print(f"  [AI] {alert['ticker']} — conf={ai_result['confidence']}% dir={ai_result['direction']}")
+
+        # Paper trading
+        if self.paper_trader:
+            for alert in all_alerts:
+                if alert.get("ai_interpretation"):
+                    await self.paper_trader.evaluate_alert(alert, chain)
+            closed = await self.paper_trader.check_exits(self.client)
+            if closed:
+                print(f"  [PAPER] Closed {closed} position(s)")
 
         sent = 0
         for alert in all_alerts[:5]:
