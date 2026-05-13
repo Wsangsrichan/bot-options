@@ -1,0 +1,35 @@
+# Secrets
+.env
+.env.*
+credentials.json
+*.pem
+
+# Node
+node_modules/
+dist/
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (local only)
+data/
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
