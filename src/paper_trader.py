@@ -76,7 +76,17 @@ class PaperTrader:
             if current_price <= 0:
                 continue
 
-            reason = self.rules.check_position(pos, current_price, current_date)
+            # Trailing stop: update high watermark
+            try:
+                trailing_high = pos.get("trailing_high", 0) or 0
+                if current_price > trailing_high:
+                    trailing_high = current_price
+                    self.pm.store.update_trailing_high(pos["id"], trailing_high)
+            except KeyError:
+                trailing_high = 0
+
+            reason = self.rules.check_position(pos, current_price, current_date,
+                                               trailing_high=trailing_high)
             if reason:
                 pnl = self.pm.close_position(pos["id"], current_price, reason)
                 direction = "CALL" if pos["option_type"] == "C" else "PUT"

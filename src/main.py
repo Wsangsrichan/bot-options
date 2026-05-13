@@ -53,7 +53,8 @@ class OptionsBot:
             )
             self.pm = PositionManager(self.store, self.config.paper_initial_balance, position_sizer=sizer)
             self.exit_rules = ExitRules(
-                self.config.stop_loss_pct, self.config.take_profit_pct, self.config.min_dte_days
+                self.config.stop_loss_pct, self.config.take_profit_pct, self.config.min_dte_days,
+                self.config.trailing_stop_activation, self.config.trailing_stop_distance
             )
             self.paper_trader = PaperTrader(
                 self.pm, self.exit_rules, self.config.paper_ai_confidence_threshold

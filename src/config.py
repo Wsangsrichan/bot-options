@@ -43,6 +43,8 @@ class Config:
         self.paper_position_strategy = os.getenv("PAPER_POSITION_STRATEGY", "fixed_fractional")
         self.paper_risk_per_trade = float(os.getenv("PAPER_RISK_PER_TRADE", "0.05"))
         self.paper_kelly_fraction = float(os.getenv("PAPER_KELLY_FRACTION", "0.5"))
+        self.trailing_stop_activation = float(os.getenv("TRAILING_STOP_ACTIVATION", "0.30"))
+        self.trailing_stop_distance = float(os.getenv("TRAILING_STOP_DISTANCE", "0.15"))
 
         # Opportunity scoring weights: vol_oi, premium_zscore, iv_rank, gex
         self.opportunity_score_weights = [

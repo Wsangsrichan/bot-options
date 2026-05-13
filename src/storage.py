@@ -35,9 +35,16 @@ class OptionsStore:
                 exit_price REAL,
                 exit_time TEXT,
                 pnl REAL DEFAULT 0,
-                status TEXT DEFAULT 'open'
+                status TEXT DEFAULT 'open',
+                trailing_high REAL DEFAULT 0
             )
         """)
+
+        # Add trailing_high column if missing (migration for existing DBs)
+        cols = [r[1] for r in self.conn.execute("PRAGMA table_info(paper_positions)").fetchall()]
+        if "trailing_high" not in cols:
+            self.conn.execute("ALTER TABLE paper_positions ADD COLUMN trailing_high REAL DEFAULT 0")
+            self.conn.commit()
 
     def save_snapshot(self, ticker: str, underlying_price: float,
                       fetched_at: str, option_count: int,
@@ -102,6 +109,13 @@ class OptionsStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def update_trailing_high(self, position_id, price):
+        self.conn.execute(
+            "UPDATE paper_positions SET trailing_high=? WHERE id=?",
+            (price, position_id),
+        )
+        self.conn.commit()
+
     def close_position(self, position_id, exit_price, exit_time, pnl):
         self.conn.execute(
             "UPDATE paper_positions SET exit_price=?, exit_time=?, pnl=?, status='closed' "
@@ -114,6 +128,14 @@ class OptionsStore:
         rows = self.conn.execute(
             "SELECT * FROM paper_positions WHERE status = 'closed' "
             "ORDER BY exit_time DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_closed_positions(self, limit=200) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM paper_positions WHERE status = 'closed' "
+            "ORDER BY exit_time ASC LIMIT ?",
             (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
