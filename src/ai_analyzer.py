@@ -1,10 +1,10 @@
-"""AI analysis of unusual options activity using Gemini."""
+"""AI analysis of unusual options activity using DeepSeek or Gemini."""
 import json
 import os
 import httpx
 
 
-GEMINI_PROMPT = """You are an options market analyst. Analyze this unusual options activity and respond in JSON only.
+ANALYSIS_PROMPT = """Analyze this unusual options activity and respond in JSON only.
 
 CONTEXT:
 - Ticker: {ticker} (spot: ${spot})
@@ -39,10 +39,10 @@ Rules:
 
 
 class AIAnalyzer:
-    def __init__(self, api_key=None, model="gemini-2.0-flash"):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("AI_API_KEY")
-        self.model = model
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+    def __init__(self, api_key=None, provider="deepseek", model=None):
+        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("AI_API_KEY")
+        self.provider = provider
+        self.model = model or ("deepseek-chat" if provider == "deepseek" else "gemini-2.0-flash")
         self.min_confidence = int(os.getenv("AI_MIN_CONFIDENCE", "30"))
 
     async def analyze_alert(self, alert: dict) -> dict | None:
@@ -51,10 +51,58 @@ class AIAnalyzer:
 
         prompt = self._build_prompt(alert)
 
+        if self.provider == "deepseek":
+            result = await self._call_deepseek(prompt)
+        else:
+            result = await self._call_gemini(prompt)
+
+        if not result:
+            return None
+
+        result = self._validate(result, alert)
+        if not result:
+            return None
+
+        confidence = result.get("confidence", 0)
+        if confidence < self.min_confidence:
+            return None
+
+        return result
+
+    async def _call_deepseek(self, prompt: str) -> dict | None:
+        """Call DeepSeek API (OpenAI-compatible)."""
         async with httpx.AsyncClient(timeout=30) as client:
             try:
                 resp = await client.post(
-                    f"{self.base_url}/{self.model}:generateContent",
+                    "https://api.deepseek.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {"role": "system", "content": "You are an options market analyst assistant. Always respond in valid JSON only. No markdown, no code fences."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "response_format": {"type": "json_object"},
+                        "temperature": 0.3,
+                        "max_tokens": 500,
+                    },
+                )
+                data = resp.json()
+                text = data["choices"][0]["message"]["content"]
+                return json.loads(text)
+            except Exception as e:
+                print(f"  [AI/DeepSeek] Error: {e}")
+                return None
+
+    async def _call_gemini(self, prompt: str) -> dict | None:
+        """Call Gemini API (fallback)."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                resp = await client.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
                     params={"key": self.api_key},
                     json={
                         "contents": [{"parts": [{"text": prompt}]}],
@@ -67,20 +115,10 @@ class AIAnalyzer:
                 )
                 data = resp.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
-                result = json.loads(text)
+                return json.loads(text)
             except Exception as e:
-                print(f"  [AI] Error: {e}")
+                print(f"  [AI/Gemini] Error: {e}")
                 return None
-
-        result = self._validate(result, alert)
-        if not result:
-            return None
-
-        confidence = result.get("confidence", 0)
-        if confidence < self.min_confidence:
-            return None
-
-        return result
 
     def _build_prompt(self, alert: dict) -> str:
         ticker = alert.get("ticker", "???")
@@ -99,7 +137,7 @@ class AIAnalyzer:
 
         market_context = "\n".join(market_parts) if market_parts else "No additional context available"
 
-        return GEMINI_PROMPT.format(
+        return ANALYSIS_PROMPT.format(
             ticker=ticker,
             spot=f"{spot:,.2f}",
             option_type="CALL" if alert.get("option_type") == "C" else "PUT",

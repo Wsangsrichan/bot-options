@@ -24,7 +24,9 @@ class Config:
         self.greeks_max_strikes_per_side = int(os.getenv("GREEKS_MAX_STRIKES_PER_SIDE", "10"))
 
         # AI Analysis
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        self.ai_api_key = os.getenv("DEEPSEEK_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
+        self.ai_provider = os.getenv("AI_PROVIDER", "deepseek")
+        self.ai_model = os.getenv("AI_MODEL", "deepseek-chat")
         self.enable_ai_analysis = os.getenv("ENABLE_AI_ANALYSIS", "true").lower() == "true"
         self.ai_min_confidence = int(os.getenv("AI_MIN_CONFIDENCE", "30"))
 
