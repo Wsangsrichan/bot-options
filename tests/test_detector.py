@@ -1,5 +1,5 @@
 from src.detector import UnusualDetector
-from src.polygon_client import OptionData
+from src.yfinance_client import OptionData
 
 
 def make_option(**overrides):
@@ -7,7 +7,7 @@ def make_option(**overrides):
         "strike": 525.0, "expiration": "2026-06-20", "option_type": "C",
         "bid": 5.20, "ask": 5.35, "last": 5.25,
         "volume": 500, "open_interest": 1000,
-        "delta": 0.42, "gamma": 0.08, "theta": -0.15, "vega": 0.22, "iv": 0.18
+        "delta": 0.42, "gamma": 0.08, "theta": -0.15, "vega": 0.22, "rho": 0.05, "iv": 0.18
     }
     defaults.update(overrides)
     return OptionData(**defaults)

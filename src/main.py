@@ -8,16 +8,15 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import Config
-from src.polygon_client import PolygonClient
+from src.yfinance_client import YFinanceClient
 from src.detector import UnusualDetector
 from src.alerter import TelegramAlerter
 
 class OptionsBot:
     def __init__(self):
         self.config = Config()
-        self.client = PolygonClient(
-            api_key=self.config.polygon_api_key,
-            api_base=self.config.polygon_api_base
+        self.client = YFinanceClient(
+            greeks_max_strikes_per_side=self.config.greeks_max_strikes_per_side
         )
         self.detector = UnusualDetector(
             vol_oi_threshold=self.config.vol_oi_ratio_threshold,
