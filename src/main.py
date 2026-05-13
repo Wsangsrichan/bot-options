@@ -144,7 +144,7 @@ class OptionsBot:
                             f"{s(result['option_type'])} · {s(result['ticker'])} \\${s(result['strike'])} · {s(result['expiration'])}\n"
                             f"Entry: \\${s(result['entry_price'])} × {s(result['contracts'])}\n"
                             f"AI Confidence: {s(result['ai_confidence'])}%\n"
-                            f"ID: #{s(result['position_id'])}"
+                            f"ID: \\#{s(result['position_id'])}"
                         )
                         try:
                             await self.alerter.send_message(msg)
