@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import Config
 from src.yfinance_client import YFinanceClient
 from src.detector import UnusualDetector
-from src.alerter import TelegramAlerter
+from src.alerter import TelegramAlerter, escape_md
 from src.storage import OptionsStore
 from src.calculator import OptionsCalculator
 from src.ai_analyzer import AIAnalyzer
@@ -138,7 +138,7 @@ class OptionsBot:
                 if alert.get("ai_interpretation"):
                     result = await self.paper_trader.evaluate_alert(alert, chain)
                     if result:
-                        s = self.alerter.escape_md
+                        s = escape_md
                         msg = (
                             f"📊 *Paper Trade Opened*\n"
                             f"{s(result['option_type'])} · {s(result['ticker'])} \\${s(result['strike'])} · {s(result['expiration'])}\n"
@@ -152,7 +152,7 @@ class OptionsBot:
                             print(f"  [PAPER] Telegram error: {e}")
             closed = await self.paper_trader.check_exits(self.client)
             for c in closed:
-                s = self.alerter.escape_md
+                s = escape_md
                 msg = (
                     f"💰 *Paper Trade Closed*\n"
                     f"{s(c['ticker'])} {s(c['option_type'])} \\$K\\={s(c['strike'])}\n"
