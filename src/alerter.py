@@ -18,14 +18,16 @@ class TelegramAlerter:
         emoji = "🔴" if signal.get("premium_zscore", 0) > 3 else "🟡"
         direction = "CALL" if signal["option_type"] == "C" else "PUT"
 
+        s = lambda x: escape_md(str(x))
+
         msg = (
-            f"{emoji} *Unusual Options Activity* — {signal['ticker']} {direction}\n\n"
-            f"• Strike: \\${signal['strike']} | Exp: {signal['expiration']}\n"
-            f"• Price: \\${signal['price']} | Vol: {signal['volume']:,} | OI: {signal['open_interest']:,}\n"
-            f"• Vol/OI Ratio: {signal.get('vol_oi_ratio', 'N/A')}\n"
+            f"{emoji} *Unusual Options Activity* — {s(signal['ticker'])} {direction}\n\n"
+            f"• Strike: \\${s(signal['strike'])}  ·  Exp: {s(signal['expiration'])}\n"
+            f"• Price: \\${s(signal['price'])}  ·  Vol: {signal['volume']:,}  ·  OI: {signal['open_interest']:,}\n"
+            f"• Vol/OI Ratio: {s(signal.get('vol_oi_ratio', 'N/A'))}\n"
             f"• Premium: \\${signal['premium_usd']:,.0f}\n"
-            f"• Delta: {signal.get('delta', 'N/A')} | IV: {signal.get('iv', 0) * 100:.1f}%\n"
-            f"• Reason: {escape_md(signal.get('reason', 'unknown'))}"
+            f"• Delta: {s(signal.get('delta', 'N/A'))}  ·  IV: {s(signal.get('iv', 0) * 100)}%\n"
+            f"• Reason: {s(signal.get('reason', 'unknown'))}"
         )
 
         await self.bot.send_message(
