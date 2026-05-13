@@ -1,6 +1,6 @@
 import numpy as np
-from py_vollib.black_scholes import black_scholes as bs_price
-from py_vollib.black_scholes.greeks.analytical import delta, gamma, theta, vega, rho
+from vollib.black_scholes import black_scholes as bs_price
+from vollib.black_scholes.greeks.analytical import delta, gamma, theta, vega, rho
 from scipy.optimize import brentq
 
 
