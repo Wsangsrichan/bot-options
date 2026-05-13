@@ -1,4 +1,8 @@
 """Simple web dashboard for bot-options — top opportunities ranking."""
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from flask import Flask, render_template_string, jsonify
 from src.storage import OptionsStore
 from src.config import Config
