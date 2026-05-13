@@ -7,7 +7,7 @@ from typing import Optional
 class OptionsStore:
     def __init__(self, db_path: str = "./data/options.db"):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS snapshots (
