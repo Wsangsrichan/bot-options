@@ -172,5 +172,16 @@ class YFinanceClient:
             delta=delta, gamma=gamma, theta=theta, vega=vega, rho=rho, iv=iv
         )
 
+    async def fetch_multiple(self, tickers: list[str], max_concurrent: int = 5) -> list:
+        """Fetch options chains for multiple tickers concurrently."""
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def fetch_one(ticker):
+            async with semaphore:
+                return await self.fetch_options_chain(ticker)
+
+        tasks = [fetch_one(t) for t in tickers]
+        return await asyncio.gather(*tasks)
+
     async def close(self):
         pass

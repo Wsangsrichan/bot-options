@@ -127,6 +127,27 @@ async def test_api_error_returns_empty_chain():
 
 
 @pytest.mark.asyncio
+async def test_fetch_multiple_tickers():
+    mock_stock = MagicMock()
+    mock_stock.options = ["2026-06-20"]
+    type(mock_stock).fast_info = PropertyMock()
+    mock_stock.fast_info.last_price = 520.50
+    mock_chain = MagicMock()
+    mock_chain.calls = pd.DataFrame([make_call_row()])
+    mock_chain.puts = pd.DataFrame([make_put_row()])
+    mock_stock.option_chain.return_value = mock_chain
+
+    with patch("src.yfinance_client.yf.Ticker", return_value=mock_stock):
+        client = YFinanceClient()
+        chains = await client.fetch_multiple(["SPY", "QQQ"])
+
+    assert len(chains) == 2
+    assert chains[0].ticker == "SPY"
+    assert chains[1].ticker == "QQQ"
+    assert chains[0].underlying_price == 520.50
+
+
+@pytest.mark.asyncio
 async def test_close_is_noop():
     client = YFinanceClient()
     await client.close()  # Should not raise

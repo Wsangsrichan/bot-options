@@ -10,7 +10,8 @@ class Config:
         self.telegram_chat_id = self._require("TELEGRAM_CHAT_ID")
 
         # Optional with defaults
-        self.scan_tickers = os.getenv("SCAN_TICKERS", "SPY").split(",")
+        self.scan_tickers = os.getenv("SCAN_TICKERS", "SPY,QQQ,IWM,DIA,TLT,GLD,VIX").split(",")
+        self.max_concurrent_fetches = int(os.getenv("MAX_CONCURRENT_FETCHES", "5"))
         self.scan_interval_minutes = int(os.getenv("SCAN_INTERVAL_MINUTES", "5"))
         self.database_url = os.getenv("DATABASE_URL", "postgresql://bot:pass@localhost:5432/options")
 
