@@ -1,16 +1,19 @@
 import asyncio
+import dataclasses
 import os
 import signal
 import sys
 from datetime import datetime
 
-# Ensure project root on path when run as `python src/main.py`
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import Config
 from src.yfinance_client import YFinanceClient
 from src.detector import UnusualDetector
 from src.alerter import TelegramAlerter
+from src.storage import OptionsStore
+from src.calculator import OptionsCalculator
+
 
 class OptionsBot:
     def __init__(self):
@@ -18,53 +21,71 @@ class OptionsBot:
         self.client = YFinanceClient(
             greeks_max_strikes_per_side=self.config.greeks_max_strikes_per_side
         )
+        self.calc = OptionsCalculator()
         self.detector = UnusualDetector(
             vol_oi_threshold=self.config.vol_oi_ratio_threshold,
             premium_zscore=self.config.premium_zscore_threshold,
-            min_contracts=self.config.min_contracts
+            min_contracts=self.config.min_contracts,
+            score_weights=self.config.opportunity_score_weights,
         )
         self.alerter = TelegramAlerter(
             token=self.config.telegram_bot_token,
             chat_id=self.config.telegram_chat_id
         )
+        self.store = OptionsStore(db_path=self.config.database_path)
         self.running = True
         self.cycle_count = 0
 
     async def scan_cycle(self):
-        """One full scan cycle: fetch -> analyze -> alert."""
         self.cycle_count += 1
         ts = datetime.now().isoformat()
-        print(f"\n[{ts}] Cycle {self.cycle_count} — scanning {self.config.scan_tickers}")
+        tickers = self.config.scan_tickers
+        print(f"\n[{ts}] Cycle {self.cycle_count} — scanning {tickers}")
 
-        total_alerts = 0
-        for ticker in self.config.scan_tickers:
+        chains = await self.client.fetch_multiple(tickers, self.config.max_concurrent_fetches)
+
+        all_alerts = []
+        for chain in chains:
+            if not chain.options:
+                print(f"  {chain.ticker}: No data")
+                continue
+
+            opts_dicts = [dataclasses.asdict(opt) for opt in chain.options]
+
+            mp = self.calc.max_pain(opts_dicts, chain.underlying_price)
+            gex = self.calc.gamma_exposure(opts_dicts, chain.underlying_price)
+
+            alerts = self.detector.analyze_chain(chain.ticker, chain.underlying_price, chain.options)
+
+            for a in alerts:
+                a["iv_rank"] = 50.0
+                a["max_pain"] = mp
+                a["gex_total"] = gex["total"]
+                a["score"] = self.detector.score_opportunity(a)
+
+            print(f"  {chain.ticker}: {len(chain.options)} opts, {len(alerts)} alerts, max_pain={mp}, gex={gex['total']:,.0f}")
+
             try:
-                chain = await self.client.fetch_options_chain(ticker)
-                if not chain.options:
-                    print(f"  {ticker}: No options data")
-                    continue
-
-                alerts = self.detector.analyze_chain(
-                    chain.ticker, chain.underlying_price, chain.options
-                )
-
-                print(f"  {ticker}: {len(chain.options)} options, {len(alerts)} alerts")
-
-                for alert in alerts[:5]:  # Cap at 5 alerts per ticker per cycle
-                    try:
-                        await self.alerter.send_signal(alert)
-                        total_alerts += 1
-                    except Exception as e:
-                        print(f"  Failed to send alert: {e}")
-
+                self.store.save_snapshot(chain.ticker, chain.underlying_price, ts,
+                                         len(chain.options), opts_dicts)
             except Exception as e:
-                print(f"  {ticker}: ERROR — {e}")
+                print(f"  {chain.ticker}: Storage error — {e}")
 
-        print(f"[{datetime.now().isoformat()}] Cycle {self.cycle_count} done — {total_alerts} alerts sent")
+            all_alerts.extend(alerts)
+
+        all_alerts.sort(key=lambda x: x.get("score", 0), reverse=True)
+        sent = 0
+        for alert in all_alerts[:5]:
+            try:
+                await self.alerter.send_signal(alert)
+                sent += 1
+            except Exception as e:
+                print(f"  Failed to send alert: {e}")
+
+        print(f"[{datetime.now().isoformat()}] Cycle {self.cycle_count} done — {len(all_alerts)} alerts, {sent} sent")
 
     async def run(self):
-        """Main loop — scan on configured interval."""
-        print(f"bot-options MVP started — tickers: {self.config.scan_tickers}, "
+        print(f"bot-options started — tickers: {self.config.scan_tickers}, "
               f"interval: {self.config.scan_interval_minutes}min")
 
         while self.running:
@@ -77,6 +98,8 @@ class OptionsBot:
 
     async def close(self):
         await self.client.close()
+        self.store.close()
+
 
 async def main():
     try:
@@ -90,7 +113,7 @@ async def main():
         try:
             loop.add_signal_handler(sig, bot.shutdown)
         except NotImplementedError:
-            pass  # Windows doesn't support add_signal_handler
+            pass
 
     try:
         await bot.run()
@@ -99,6 +122,7 @@ async def main():
     finally:
         await bot.close()
         print("bot-options stopped")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

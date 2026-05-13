@@ -3,10 +3,12 @@ from src.calculator import OptionsCalculator
 
 
 class UnusualDetector:
-    def __init__(self, vol_oi_threshold=0.5, premium_zscore=2.0, min_contracts=50):
+    def __init__(self, vol_oi_threshold=0.5, premium_zscore=2.0, min_contracts=50,
+                 score_weights=None):
         self.vol_oi_threshold = vol_oi_threshold
         self.premium_zscore = premium_zscore
         self.min_contracts = min_contracts
+        self.score_weights = score_weights or [0.25, 0.50, 0.15, 0.10]
         self.calc = OptionsCalculator()
 
     def analyze_chain(self, ticker, underlying_price, options):
@@ -60,3 +62,14 @@ class UnusualDetector:
                 alerts.append(signal)
 
         return alerts
+
+    def score_opportunity(self, signal: dict) -> float:
+        w1, w2, w3, w4 = self.score_weights
+
+        vol_oi_norm = min(signal.get("vol_oi_ratio", 0) / 2.0, 1.0) * 100
+        premium_mapped = min(signal.get("premium_zscore", 0) / 5.0, 1.0) * 100
+        iv_rank = signal.get("iv_rank", 50.0)
+        gex_contrib = min(abs(signal.get("gex_contribution", 0)) * 10, 1.0) * 100
+
+        score = w1 * vol_oi_norm + w2 * premium_mapped + w3 * iv_rank + w4 * gex_contrib
+        return round(min(score, 100.0), 1)

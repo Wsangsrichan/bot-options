@@ -23,6 +23,15 @@ class Config:
         # yfinance Greeks computation
         self.greeks_max_strikes_per_side = int(os.getenv("GREEKS_MAX_STRIKES_PER_SIDE", "10"))
 
+        # Storage
+        self.database_path = os.getenv("DATABASE_PATH", "./data/options.db")
+
+        # Opportunity scoring weights: vol_oi, premium_zscore, iv_rank, gex
+        self.opportunity_score_weights = [
+            float(w) / 100
+            for w in os.getenv("OPPORTUNITY_SCORE_WEIGHTS", "25,50,15,10").split(",")
+        ]
+
     def _require(self, key):
         val = os.getenv(key)
         if not val:

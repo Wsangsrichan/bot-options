@@ -52,3 +52,28 @@ def test_combined_reasons():
     assert len(alerts) == 1
     assert "high_vol_oi" in alerts[0]["reason"]
     assert "large_premium" in alerts[0]["reason"]
+
+
+def test_composite_score():
+    detector = UnusualDetector(vol_oi_threshold=0.5, premium_zscore=2.0, min_contracts=10)
+    signal = {
+        "vol_oi_ratio": 1.5,
+        "premium_zscore": 3.5,
+        "iv_rank": 65.0,
+        "gex_contribution": 0.05,
+    }
+    score = detector.score_opportunity(signal)
+    assert 0 <= score <= 100
+    assert score > 50
+
+
+def test_composite_score_low():
+    detector = UnusualDetector(vol_oi_threshold=0.5, premium_zscore=2.0, min_contracts=10)
+    signal = {
+        "vol_oi_ratio": 0.3,
+        "premium_zscore": 0.5,
+        "iv_rank": 20.0,
+        "gex_contribution": 0.0,
+    }
+    score = detector.score_opportunity(signal)
+    assert score < 40
