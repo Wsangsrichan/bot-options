@@ -28,7 +28,7 @@ class TelegramAlerter:
             f"• Premium: \\${signal['premium_usd']:,.0f}\n"
             f"• Delta: {s(signal.get('delta', 'N/A'))}  ·  IV: {s(signal.get('iv', 0) * 100)}%\n"
             f"• Score: {signal.get('score', 0):.0f}/100\n"
-            f"• Max Pain: ${s(signal.get('max_pain', 'N/A'))} | GEX: ${signal.get('gex_total', 0):,.0f}\n"
+            f"• Max Pain: \\${s(signal.get('max_pain', 'N/A'))}  ·  GEX: \\${signal.get('gex_total', 0):,.0f}\n"
             f"• Reason: {s(signal.get('reason', 'unknown'))}"
         )
 
