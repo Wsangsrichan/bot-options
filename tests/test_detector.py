@@ -19,6 +19,8 @@ def test_detect_high_vol_oi():
     alerts = detector.analyze_chain("SPY", 520.50, [opt])
     assert len(alerts) == 1
     assert alerts[0]["reason"] == "high_vol_oi"
+    assert "bid" in alerts[0]
+    assert "ask" in alerts[0]
 
 
 def test_normal_activity_no_alert():

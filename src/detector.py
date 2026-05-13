@@ -52,6 +52,8 @@ class UnusualDetector:
                     "strike": opt.strike,
                     "expiration": opt.expiration,
                     "option_type": opt.option_type,
+                    "bid": opt.bid,
+                    "ask": opt.ask,
                     "price": opt.last,
                     "volume": opt.volume,
                     "open_interest": opt.open_interest,

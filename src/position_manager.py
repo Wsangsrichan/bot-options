@@ -10,8 +10,12 @@ class PositionManager:
         bid = alert.get("bid", 0)
         ask = alert.get("ask", 0)
         if bid <= 0 or ask <= 0:
-            return None
-        entry = (bid + ask) / 2
+            price = alert.get("price", 0)
+            if price <= 0:
+                return None
+            entry = price
+        else:
+            entry = (bid + ask) / 2
         cost = entry * 100
 
         summary = self.store.get_account_summary()
