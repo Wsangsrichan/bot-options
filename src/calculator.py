@@ -93,3 +93,44 @@ class OptionsCalculator:
                     'rho': 0.0,
                 }
         return None
+
+    def max_pain(self, options: list[dict], spot: float) -> float:
+        strikes = set()
+        for o in options:
+            strikes.add(o["strike"])
+        strikes = sorted(strikes)
+
+        min_pain = float("inf")
+        mp_strike = strikes[0]
+
+        for strike in strikes:
+            total_pain = 0.0
+            for o in options:
+                if o["option_type"] in ("C", "c", "call"):
+                    if strike > o["strike"]:
+                        total_pain += o["open_interest"] * o["last"] * 100
+                else:
+                    if strike < o["strike"]:
+                        total_pain += o["open_interest"] * o["last"] * 100
+            if total_pain < min_pain:
+                min_pain = total_pain
+                mp_strike = strike
+
+        return float(mp_strike)
+
+    def gamma_exposure(self, options: list[dict], spot: float) -> dict:
+        by_strike: dict[float, float] = {}
+        for o in options:
+            strike = o["strike"]
+            gex = abs(o["gamma"]) * o["open_interest"] * 100 * spot
+            by_strike[strike] = by_strike.get(strike, 0.0) + gex
+
+        total = sum(by_strike.values())
+        positive_count = sum(1 for v in by_strike.values() if v > 0)
+
+        return {
+            "total": total,
+            "by_strike": by_strike,
+            "positive_count": positive_count,
+            "negative_count": len(by_strike) - positive_count,
+        }
