@@ -286,9 +286,13 @@ def paper():
     if open_positions:
         tickers = list({p["ticker"] for p in open_positions})
         try:
-            chains = asyncio.get_event_loop().run_until_complete(
-                yf_client.fetch_multiple(tickers, max_concurrent=len(tickers))
-            )
+            loop = asyncio.new_event_loop()
+            try:
+                chains = loop.run_until_complete(
+                    yf_client.fetch_multiple(tickers, max_concurrent=len(tickers))
+                )
+            finally:
+                loop.close()
             chain_map = {c.ticker: c for c in chains}
             for pos in open_positions:
                 chain = chain_map.get(pos["ticker"])
@@ -310,6 +314,7 @@ def paper():
                     pos["unrealized_pnl"] = None
                     pos["unrealized_pnl_pct"] = None
         except Exception:
+            import traceback; traceback.print_exc()
             for pos in open_positions:
                 pos["current_price"] = None
                 pos["unrealized_pnl"] = None
@@ -348,9 +353,13 @@ def api_paper_portfolio():
     if open_positions:
         tickers = list({p["ticker"] for p in open_positions})
         try:
-            chains = asyncio.get_event_loop().run_until_complete(
-                yf_client.fetch_multiple(tickers, max_concurrent=len(tickers))
-            )
+            loop = asyncio.new_event_loop()
+            try:
+                chains = loop.run_until_complete(
+                    yf_client.fetch_multiple(tickers, max_concurrent=len(tickers))
+                )
+            finally:
+                loop.close()
             chain_map = {c.ticker: c for c in chains}
 
             for pos in open_positions:
@@ -373,6 +382,7 @@ def api_paper_portfolio():
                     pos["unrealized_pnl"] = None
                     pos["unrealized_pnl_pct"] = None
         except Exception:
+            import traceback; traceback.print_exc()
             for pos in open_positions:
                 pos["current_price"] = None
                 pos["unrealized_pnl"] = None

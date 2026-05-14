@@ -67,7 +67,7 @@ class PaperBroker(Broker):
         positions = self.pm.store.get_open_positions()
         result = []
         for p in positions:
-            unrealized = 0.0
+            unrealized = None  # Computed by caller (dashboard) via live pricing
             result.append(PositionInfo(
                 ticker=p["ticker"],
                 option_type=p["option_type"],
