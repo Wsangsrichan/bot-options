@@ -59,7 +59,6 @@ class OptionsBot:
                         app_secret=self.config.webull_app_secret,
                         endpoint=self.config.webull_endpoint,
                         account_id=self.config.webull_account_id,
-                        password=self.config.webull_password,
                     )
                     if self.broker.connect():
                         logger.info("Webull broker connected (live trading)")
