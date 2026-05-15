@@ -7,6 +7,8 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import logging
+
 from src.config import Config
 from src.yfinance_client import YFinanceClient
 from src.detector import UnusualDetector
@@ -18,6 +20,8 @@ from src.position_manager import PositionManager
 from src.exit_rules import ExitRules
 from src.paper_trader import PaperTrader
 from src.position_sizer import PositionSizer
+
+logger = logging.getLogger(__name__)
 
 
 class OptionsBot:
@@ -44,8 +48,33 @@ class OptionsBot:
             model=self.config.ai_model,
         ) if self.config.enable_ai_analysis else None
 
+        # Broker selection
+        self.broker = None
+        if self.config.broker_mode == "webull":
+            if self.config.webull_app_key and self.config.webull_account_id:
+                try:
+                    from src.broker_webull import WebullBroker
+                    self.broker = WebullBroker(
+                        app_key=self.config.webull_app_key,
+                        app_secret=self.config.webull_app_secret,
+                        endpoint=self.config.webull_endpoint,
+                        account_id=self.config.webull_account_id,
+                        password=self.config.webull_password,
+                    )
+                    if self.broker.connect():
+                        logger.info("Webull broker connected (live trading)")
+                    else:
+                        logger.warning("Webull connect failed, falling back to paper")
+                        self.broker = None
+                except ImportError as e:
+                    logger.warning("Webull SDK not available: %s — falling back to paper", e)
+                    self.broker = None
+            else:
+                logger.warning("broker_mode=webull but WEBULL_APP_KEY/WEBULL_ACCOUNT_ID not set — using paper")
+                self.broker = None
+
         # Paper trading
-        if self.config.enable_paper_trading:
+        if self.config.enable_paper_trading or self.broker is None:
             sizer = PositionSizer(
                 strategy=self.config.paper_position_strategy,
                 risk_per_trade=self.config.paper_risk_per_trade,

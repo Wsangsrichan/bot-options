@@ -47,6 +47,14 @@ class Config:
         self.trailing_stop_activation = float(os.getenv("TRAILING_STOP_ACTIVATION", "0.30"))
         self.trailing_stop_distance = float(os.getenv("TRAILING_STOP_DISTANCE", "0.15"))
 
+        # Broker mode: "paper" or "webull"
+        self.broker_mode = os.getenv("BROKER_MODE", "paper")
+        self.webull_app_key = os.getenv("WEBULL_APP_KEY", "")
+        self.webull_app_secret = os.getenv("WEBULL_APP_SECRET", "")
+        self.webull_endpoint = os.getenv("WEBULL_ENDPOINT", "")
+        self.webull_account_id = os.getenv("WEBULL_ACCOUNT_ID", "")
+        self.webull_password = os.getenv("WEBULL_PASSWORD", "")
+
         # Opportunity scoring weights: vol_oi, premium_zscore, iv_rank, gex
         self.opportunity_score_weights = [
             float(w) / 100
